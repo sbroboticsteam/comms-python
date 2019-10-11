@@ -1,0 +1,13 @@
+{
+    "id": "test",
+    "topics": [
+        {
+            "name": "inputs-out",
+            "topic": "inputs",
+            "paradigm": "sub",
+            "protocol": "tcp",
+            "address": "127.0.0.1",
+            "port": "5556"
+        }
+    ]
+}
