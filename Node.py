@@ -1,6 +1,7 @@
 import json
 import zmq
 import traceback
+import struct
 
 
 class Node():
@@ -112,29 +113,65 @@ class Node():
         The first argument is the topic to send the message on and the second
         is the message body
         """
-        out = "%s %s" % (topic, msg)
-        self.topics[topic].send(bytes(out, 'utf-8'))
+        if isinstance(msg, np.ndarray):
+            """
+            send numpy array as 1 + np type + np dimension + np shape + np data
+            """
+            out = bytes([1]) + str(msg.dtype).encode() + bytes([len(msg.shape)]) + bytes(msg.shape) + msg.tobytes()
+            self.topics[topic].send(out)
+        elif isinstance(msg, json):
+            """
+            send json
+            """
+            out = bytes([2]) + ' '.join(format(ord(letter), 'b') for letter in str)
+            self.topics[topic].send(out)
+        elif isinstance(msg, int):
+            """
+            send integer
+            """
+            out = bytes([3]) + msg.to_bytes(4, byteorder="big", signed=True)
+            self.topics[topic].send(out)
+        elif isinstance(msg, float):
+            """
+            send float
+            """
+            out = bytes([4]) + struct.pack('d', msg)
+            self.topics[topic].send(out)
+        elif isinstance(msg, bool):
+            """
+            send boolean
+            """
+            out = bytes([5]) + struct.pack('?', msg)
+            self.topics[topic].send(out)
+        else:
+            """
+            send everything else as a string
+            """
+            out = bytes([6])
+            out = "%s %s" % (topic, msg)
+            self.topics[topic].send(out.encode())
 
-    def recv_simple(self, topic):
-        """This methof is used to receive messages without a callback
-        
-        It returns a string read from the topic
+    def recv(self, topic):
+        """This method is used to receive messages without a callback
+            It decodes the received bytes to turn into data
         """
         re = self.topics[topic].recv()
-        return re
 
-    # TODO: implement a timeout
-    def recv(self, topic, callback):
-        """This method is used to receive messages for the sub pattern
+        data_type = re[0]
 
-        The first argument is the topic to look for messages on.
-        The second argument is a function to be executed with the message
-        received being passed to it as an argument
-        NOT VERIFIED: This method is blocking, and will interrupt execution
-        until a message is received
-        """
-        re = self.topics[topic].recv_string()
-        callback(re)
+        if data_type == 1: # receive np array
+            return 0
+        elif data_type == 2: # receive json
+            return json.dumps(re[1:].decode()).replace("'", '"')[1:-1]
+        elif data_type == 3: # receive integer
+            return re[1:].from_bytes(4, byteorder="big", signed=True)
+        elif data_type == 4: # receive float
+            return struct.unpack('d', re[1:])[0]
+        elif data_type == 5: # receive bool
+            return struct.unpack('?', re[1:])[0]
+        else:
+            re.decode()
+        
 
     def request(self, topic, req, callback):
         """This method is used to send a request to a node
