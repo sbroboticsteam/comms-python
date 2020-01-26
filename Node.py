@@ -3,58 +3,90 @@ import zmq
 import traceback
 
 
-class Node():
-    """This is the class that will be the base of every node object
+def extract_config(name, file):
+    # read master config from file
+    f = open(file)
+    master = json.load(f)
+    f.close()
+    # make sure host exists in master config
+    if name not in master['hosts']:
+        raise Exception("Host with given name does not exist")
+    config = {'pub': [], 'sub': [], 'req': [], 'rep': []}
+    # iterate each topic in master config:
+    for topic in master['topics']:
+        # copy topic info
+        newtopic = {
+            'id': topic['id'],
+            'protocol': topic['protocol'],
+            'address': topic['address'],
+            'port': ""
+        }
+        if topic['protocol'] == 'tcp' or topic['protocol'] == 'udp':
+            newtopic['port'] = topic['port']
+        # add topic to the correct list (if any)
+        if topic['paradigm'] == 'pubsub':
+            if topic['pub'] == name:
+                config['pub'].append(newtopic)
+            elif name in topic['sub']:
+                config['sub'].append(newtopic)
+        elif topic['paradigm'] == 'reqrep':
+            if topic['req'] == name:
+                config['req'].append(newtopic)
+            elif topic['rep'] == name:
+                config['rep'].append(newtopic)
+        else: 
+            raise Exception("Invalid paradigm")
+    return config
 
-    Each node will read a config file in JSON format to initialize zmq sockets.
-    The sockets will be stored in a dict with the key being the topic and the
-    value being the socket.
-    To create a node, make a config file and extend the run() method.
-    Further functionality is on the way.
+
+class Node():
+    """ This is the class that manages a host's zmq sockets.
+
+    You do not need to create any nodes; they will be created automatically by
+    the Host class.
     """
 
-    def __init__(self, configPath):
-        f = open(configPath)
-        self.configPath = configPath
-        self.configData = json.load(f)
-        f.close()
-        self.id = self.configData['id']
+    def __init__(self, name, config):
+        self.name = name
+        self.config_data = extract_config(name, config)
         self.context = zmq.Context()
-        self.topics = {}
+        self.pub = {}
+        self.sub = {}
+        self.req = {}
+        self.rep = {}
         self.initzmq()
+
+    def initzmq(self):
+        """ This method initializes zmq sockets for topics on which the node is
+        pub or rep.
+
+        """
+
+        self.build_sockets('pub')
+        self.build_sockets('sub')
+        self.build_sockets('rep')
+        self.build_sockets('req')
 
     def stopzmq(self):
         """ Shuts down all zmq stuff
 
-
         """
 
         self.context.destroy()
-
-    def loop(self):
-        """ The main node code that gets executed every loop
-
-        This is the method that should be overridden for the node to do stuff
-        So help me God if anyone overrides this and puts a while true in there
-        """
-
-        print(self.id + " needs an overridden loop method")
-
-    # TODO: use new helper methods
-    def initzmq(self):
-        """This method initializes zmq sockets and places them in the topics dict
-
-        It will throw exceptions if the JSON it was fed is not correct
-        """
-
-        if "topics" not in self.configData:
-            raise Exception("Topics not found in %s" % self.configPath)
-
-        for topic in self.configData['topics']:
-            addr = self.gen_address(topic['protocol'], topic['address'],
+    
+    def build_sockets(self, paradigm):
+        for topic in self.config_data[paradigm]:
+            addr = self.gen_address(topic['protocol'], topic['address'], 
                                     topic['port'])
-            socket = self.build_socket(topic['paradigm'], topic['topic'], addr)
-            self.topics[topic['name']] = socket
+            socket = self.build_socket(paradigm, topic['id'], addr)
+            if paradigm == 'pub':
+                self.pub[topic['id']] = socket
+            elif paradigm == 'sub':
+                self.sub[topic['id']] = socket
+            elif paradigm == 'req':
+                self.req[topic['id']] = socket
+            elif paradigm == 'rep':
+                self.rep[topic['id']] = socket
 
     def gen_address(self, protocol, address, port):
         """ This method builds a url from info in a json file
@@ -84,7 +116,6 @@ class Node():
     def build_socket(self, paradigm, topic, url):
         """ This method creates a socket from a paradigm and a url
 
-
         """
 
         socket = None
@@ -112,15 +143,19 @@ class Node():
         The first argument is the topic to send the message on and the second
         is the message body
         """
+        if topic not in self.pub:
+            raise Exception("Topic is not an existing pub topic")
         out = "%s %s" % (topic, msg)
-        self.topics[topic].send(bytes(out, 'utf-8'))
+        self.pub[topic].send(bytes(out, 'utf-8'))
 
     def recv_simple(self, topic):
-        """This methof is used to receive messages without a callback
+        """This method is used to receive messages without a callback
         
         It returns a string read from the topic
         """
-        re = self.topics[topic].recv()
+        if topic not in self.sub:
+            raise Exception("Topic is not an existing sub topic")
+        re = self.sub[topic].recv()
         return re
 
     # TODO: implement a timeout
@@ -133,7 +168,9 @@ class Node():
         NOT VERIFIED: This method is blocking, and will interrupt execution
         until a message is received
         """
-        re = self.topics[topic].recv_string()
+        if topic not in self.sub:
+            raise Exception("Topic is not an existing sub topic")
+        re = self.sub[topic].recv_string()
         callback(re)
 
     def request(self, topic, req, callback):
@@ -147,8 +184,10 @@ class Node():
         IMPORTANT: this method calls recv() and send(), so the parameters must
         be bytes!
         """
-        self.topics[topic].send(req)
-        msg = self.topics[topic].recv()
+        if topic not in self.req:
+            raise Exception("Topic is not an existing req topic")
+        self.req[topic].send(req)
+        msg = self.req[topic].recv()
         callback(msg)
 
     def reply(self, topic, callback):
@@ -163,6 +202,27 @@ class Node():
         be bytes!
         """
         
-        msg = self.topics[topic].recv()
+        if topic not in self.rep:
+            raise Exception("Topic is not an existing rep topic")
+        msg = self.rep[topic].recv()
         rep = callback(msg)
-        self.topics[topic].send(rep)
+        self.rep[topic].send(rep)
+
+    def print_topics(self):
+        """This method prints the configs of each topic.
+
+        """
+
+        print("Host name: {}".format(self.name))
+        print(" pub:")
+        for topic in self.pub:
+            print("  " + topic)
+        print(" sub:")
+        for topic in self.sub:
+            print("  " + topic)
+        print(" req:")
+        for topic in self.req:
+            print("  " + topic)
+        print(" rep:")
+        for topic in self.rep:
+            print("  " + topic)
