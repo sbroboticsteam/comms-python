@@ -21,7 +21,7 @@ def extract_config(name, file):
             'address': topic['address'],
             'port': ""
         }
-        if topic['protocol'] == 'tcp' or topic['protocol'] == 'udp':
+        if topic['protocol'] == 'tcp':
             newtopic['port'] = topic['port']
         # add topic to the correct list (if any)
         if topic['paradigm'] == 'pubsub':
@@ -91,7 +91,7 @@ class Node():
     def gen_address(self, protocol, address, port):
         """ This method builds a url from info in a json file
 
-        It can create a url for ipc, udp and tcp.
+        It can create a url for ipc and tcp.
         It will throw exceptions if the protocol is invalid
         """
 
@@ -99,16 +99,14 @@ class Node():
 
         if protocol == "tcp":
             url = "tcp://"
-        elif protocol == "udp":
-            url = "udp://"
         elif protocol == "ipc":
             url = "ipc://"
         else:
-            raise Exception("Protocol not ipc or udp or tcp")
+            raise Exception("Protocol not ipc or tcp")
 
         url += address
 
-        if protocol == "tcp" or protocol == "udp":
+        if protocol == "tcp":
             url += ":" + port
 
         return url
@@ -130,7 +128,7 @@ class Node():
             socket = self.context.socket(zmq.REQ)
             socket.connect(url)
         elif paradigm == "rep":
-            socket == self.context.socket(zmq.REP)
+            socket = self.context.socket(zmq.REP)
             socket.bind(url)
         else:
             raise Exception("Please provide a valid paradigm")

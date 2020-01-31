@@ -8,8 +8,9 @@ class Banana(Host):
     name = 'banana'
 
     def run(self):
-        msg = self.node.recv_simple('juice')
-        print()
+        msg = self.node.recv_simple('smoothie')
         print("Message received:")
         print(msg)
-        print()
+        msg = self.node.recv_simple('juice')
+        print("Message received:")
+        print(msg)

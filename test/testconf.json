@@ -1,17 +1,39 @@
 {
-    "hosts": [
-        "apple", 
-        "banana"
-    ],
-    "topics": [
+    "hosts":["apple","banana","canteloupe","durian"],
+    "topics":[
         {
-            "id": "juice",
-            "paradigm": "pubsub",
-            "pub": "apple",
-            "sub": ["banana"],
-            "protocol": "tcp",
-            "address": "127.0.0.1",
-            "port": "5556"
+            "id":"juice",
+            "protocol":"tcp",
+            "paradigm":"pubsub",
+            "address":"127.0.0.1",
+            "port":"5555",
+            "pub":"apple",
+            "sub":["banana","canteloupe"]
+        },
+        {
+            "id":"smoothie",
+            "protocol":"ipc",
+            "paradigm":"pubsub",
+            "address":"comms0",
+            "pub":"apple",
+            "sub":["banana"]
+        },
+        {
+            "id":"peel",
+            "protocol":"tcp",
+            "paradigm":"reqrep",
+            "address":"127.0.0.1",
+            "port":"5556",
+            "req":"durian",
+            "rep":"canteloupe"
+        },
+        {
+            "id":"zest",
+            "protocol":"ipc",
+            "paradigm":"reqrep",
+            "address":"comms1",
+            "req":"durian",
+            "rep":"canteloupe"
         }
     ]
 }
