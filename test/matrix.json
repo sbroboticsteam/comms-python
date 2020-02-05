@@ -1,0 +1,15 @@
+
+{
+    "hosts":["send","recv"],
+    "topics":[
+        {
+            "id":"matrix",
+            "protocol":"tcp",
+            "paradigm":"pubsub",
+            "address":"127.0.0.1",
+            "port":"5555",
+            "pub":"send",
+            "sub":["recv"]
+        }
+    ]
+}

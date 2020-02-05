@@ -1,7 +1,7 @@
 import json
 import zmq
 import traceback
-
+import numpy as np
 
 def extract_config(name, file):
     # read master config from file
@@ -143,8 +143,19 @@ class Node():
         """
         if topic not in self.pub:
             raise Exception("Topic is not an existing pub topic")
-        out = "%s %s" % (topic, msg)
-        self.pub[topic].send(bytes(out, 'utf-8'))
+        out = "" 
+        if isinstance(msg, np.ndarray):
+            """
+            send numpy array as 1 + np type + np dimension + np shape + np data
+            """
+            out = bytes([1]) + bytes([0]) + str(msg.dtype).encode() + bytes([0]) + len(msg.shape).to_bytes(4, byteorder="big")
+            for i in msg.shape:
+                out += i.to_bytes(4, byteorder="big")
+            out += msg.tobytes()
+            self.pub[topic].send(out)
+        else:
+            out = "%s %s" % (topic, msg)
+            self.pub[topic].send(bytes(2) + bytes(out, 'utf-8'))
 
     def recv_simple(self, topic):
         """This method is used to receive messages without a callback
@@ -154,7 +165,29 @@ class Node():
         if topic not in self.sub:
             raise Exception("Topic is not an existing sub topic")
         re = self.sub[topic].recv()
-        return re
+
+        data_type = re[0]
+
+        if data_type == 1: # receive np array
+
+            """
+            recv numpy array as 1 + np type + np dimension + np shape + np data
+            """
+            # get type
+            t = np.dtype(re.split(bytes([0]),2)[1].decode("utf-8"))
+            # get dimentions
+            aftertype = re.split(bytes([0]),2)[2]
+            d = int.from_bytes(aftertype[:4], byteorder="big")
+            # get shape
+            shape = []
+            for i in range(d):
+                shape.append(int.from_bytes(aftertype[i*4 + 4: i*4 + 8], byteorder="big"))
+            shape = tuple(shape)
+            array = np.frombuffer(aftertype[d*4 + 4:], dtype = t)
+            array = array.reshape(shape)
+            return array
+        else:
+            return re[1:]
 
     # TODO: implement a timeout
     def recv(self, topic, callback):

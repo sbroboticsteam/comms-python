@@ -1,21 +1,10 @@
-"""
-This is the code to automatically start up the hosts Apple and Banana in a 
-synchronized way.
-To make it work for other groups of hosts, you only need to edit the HOSTS
-and MASTERCONFIG constants for this file.
-The synchronization currently only supports the case where all hosts operate
-in separate processes from each other.
-"""
+
 import multiprocessing as mp
-from Apple import Apple
-from Banana import Banana
-from Canteloupe import Canteloupe
-from Durian import Durian
 import time
-
-
-MASTERCONFIG = './testconf.json'
-HOSTS = [Apple, Banana, Canteloupe, Durian]
+from recv import Recv
+from send import Send
+MASTERCONFIG = "./matrix.json"
+HOSTS = [Recv, Send]
 
 
 def starter(host, probe, trigger):
