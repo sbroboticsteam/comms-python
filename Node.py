@@ -153,6 +153,7 @@ class Node():
                 out += i.to_bytes(4, byteorder="big")
             out += msg.tobytes()
             self.pub[topic].send(out)
+            print(out)
         else:
             out = "%s %s" % (topic, msg)
             self.pub[topic].send(bytes(2) + bytes(out, 'utf-8'))
@@ -165,7 +166,7 @@ class Node():
         if topic not in self.sub:
             raise Exception("Topic is not an existing sub topic")
         re = self.sub[topic].recv()
-
+        print(re)
         data_type = re[0]
 
         if data_type == 1: # receive np array
@@ -202,7 +203,29 @@ class Node():
         if topic not in self.sub:
             raise Exception("Topic is not an existing sub topic")
         re = self.sub[topic].recv_string()
-        callback(re)
+        
+        data_type = re[0]
+
+        if data_type == 1: # receive np array
+
+            """
+            recv numpy array as 1 + np type + np dimension + np shape + np data
+            """
+            # get type
+            t = np.dtype(re.split(bytes([0]),2)[1].decode("utf-8"))
+            # get dimentions
+            aftertype = re.split(bytes([0]),2)[2]
+            d = int.from_bytes(aftertype[:4], byteorder="big")
+            # get shape
+            shape = []
+            for i in range(d):
+                shape.append(int.from_bytes(aftertype[i*4 + 4: i*4 + 8], byteorder="big"))
+            shape = tuple(shape)
+            array = np.frombuffer(aftertype[d*4 + 4:], dtype = t)
+            array = array.reshape(shape)
+            callback(array)
+        else:
+            callback(re[1:])
 
     def request(self, topic, req, callback):
         """This method is used to send a request to a node
