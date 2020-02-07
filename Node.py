@@ -148,15 +148,18 @@ class Node():
             """
             send numpy array as 1 + np type + np dimension + np shape + np data
             """
-            out = bytes([1]) + bytes([0]) + str(msg.dtype).encode() + bytes([0]) + len(msg.shape).to_bytes(4, byteorder="big")
-            for i in msg.shape:
-                out += i.to_bytes(4, byteorder="big")
-            out += msg.tobytes()
-            self.pub[topic].send(out)
-            print(out)
+            out = [
+                "A".encode(),
+                msg.tobytes(),
+                str(msg.dtype).encode(),
+                np.asarray(msg.shape).tobytes()
+            ]
         else:
-            out = "%s %s" % (topic, msg)
-            self.pub[topic].send(bytes(2) + bytes(out, 'utf-8'))
+            out = [
+                    "S".encode(),
+                    ("%s %s" % (topic, msg)).encode()
+            ]
+        self.pub[topic].send_multipart(out)
 
     def recv_simple(self, topic):
         """This method is used to receive messages without a callback
@@ -165,30 +168,19 @@ class Node():
         """
         if topic not in self.sub:
             raise Exception("Topic is not an existing sub topic")
-        re = self.sub[topic].recv()
-        print(re)
-        data_type = re[0]
+        re = self.sub[topic].recv_multipart()
+        data_type = re[0].decode('utf-8')
 
-        if data_type == 1: # receive np array
+        if data_type == "A": # receive np array
 
             """
             recv numpy array as 1 + np type + np dimension + np shape + np data
             """
-            # get type
-            t = np.dtype(re.split(bytes([0]),2)[1].decode("utf-8"))
-            # get dimentions
-            aftertype = re.split(bytes([0]),2)[2]
-            d = int.from_bytes(aftertype[:4], byteorder="big")
-            # get shape
-            shape = []
-            for i in range(d):
-                shape.append(int.from_bytes(aftertype[i*4 + 4: i*4 + 8], byteorder="big"))
-            shape = tuple(shape)
-            array = np.frombuffer(aftertype[d*4 + 4:], dtype = t)
-            array = array.reshape(shape)
+            array = np.frombuffer(re[1], re[2].decode("utf-8"))
+            array.reshape(tuple(np.frombuffer(re[3], np.dtype(int))))
             return array
         else:
-            return re[1:]
+            return re[1].decode('utf-8')
 
     # TODO: implement a timeout
     def recv(self, topic, callback):
@@ -202,30 +194,20 @@ class Node():
         """
         if topic not in self.sub:
             raise Exception("Topic is not an existing sub topic")
-        re = self.sub[topic].recv_string()
-        
-        data_type = re[0]
+        re = self.sub[topic].recv_multipart()
+        data_type = re[0].decode('utf-8')
 
-        if data_type == 1: # receive np array
+        if data_type == "A": # receive np array
 
             """
             recv numpy array as 1 + np type + np dimension + np shape + np data
             """
-            # get type
-            t = np.dtype(re.split(bytes([0]),2)[1].decode("utf-8"))
-            # get dimentions
-            aftertype = re.split(bytes([0]),2)[2]
-            d = int.from_bytes(aftertype[:4], byteorder="big")
-            # get shape
-            shape = []
-            for i in range(d):
-                shape.append(int.from_bytes(aftertype[i*4 + 4: i*4 + 8], byteorder="big"))
-            shape = tuple(shape)
-            array = np.frombuffer(aftertype[d*4 + 4:], dtype = t)
-            array = array.reshape(shape)
-            callback(array)
+            array = np.frombuffer(re[1], re[2].decode("utf-8"))
+            array.reshape(tuple(np.frombuffer(re[3], np.dtype(int))))
+            return array
         else:
-            callback(re[1:])
+            return re[1].decode('utf-8')
+
 
     def request(self, topic, req, callback):
         """This method is used to send a request to a node
