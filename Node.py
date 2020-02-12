@@ -203,10 +203,10 @@ class Node():
             recv numpy array as 1 + np type + np dimension + np shape + np data
             """
             array = np.frombuffer(re[1], re[2].decode("utf-8"))
-            array.reshape(tuple(np.frombuffer(re[3], np.dtype(int))))
-            return array
+            array = array.reshape(tuple(np.frombuffer(re[3], np.dtype(int))))
+            callback(array)
         else:
-            return re[1].decode('utf-8')
+            callback(re[1].decode('utf-8'))
 
 
     def request(self, topic, req, callback):
@@ -223,8 +223,19 @@ class Node():
         if topic not in self.req:
             raise Exception("Topic is not an existing req topic")
         self.req[topic].send(req)
-        msg = self.req[topic].recv()
-        callback(msg)
+        msg = self.req[topic].recv_multipart()
+        data_type = msg[0].decode('utf-8')
+
+        if data_type == "A": # receive np array
+
+            """
+            recv numpy array as 1 + np type + np dimension + np shape + np data
+            """
+            array = np.frombuffer(msg[1], msg[2].decode("utf-8"))
+            array = array.reshape(tuple(np.frombuffer(msg[3], np.dtype(int))))
+            callback(array)
+        else:
+            callback(msg[1].decode('utf-8'))
 
     def reply(self, topic, callback):
         """This method is used to send a reply to a node
@@ -242,7 +253,24 @@ class Node():
             raise Exception("Topic is not an existing rep topic")
         msg = self.rep[topic].recv()
         rep = callback(msg)
-        self.rep[topic].send(rep)
+        out = None
+
+        if isinstance(rep, np.ndarray):
+            """
+            send numpy array as 1 + np type + np dimension + np shape + np data
+            """
+            out = [
+                "A".encode(),
+                rep.tobytes(),
+                str(rep.dtype).encode(),
+                np.asarray(rep.shape).tobytes()
+            ]
+        else:
+            out = [
+                    "S".encode(),
+                    rep.encode()
+            ]
+        self.rep[topic].send_multipart(out)
 
     def print_topics(self):
         """This method prints the configs of each topic.
