@@ -5,11 +5,11 @@
         {
             "id":"matrix",
             "protocol":"tcp",
-            "paradigm":"pubsub",
+            "paradigm":"reqrep",
             "address":"127.0.0.1",
-            "port":"5555",
-            "pub":"send",
-            "sub":["recv"]
+            "port":"5555", 
+            "req":"recv",
+            "rep":"send"
         }
     ]
 }

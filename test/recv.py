@@ -6,8 +6,9 @@ import numpy as np
 
 class Recv(Host):
     name = 'recv'
-    
+    def printr(self, ma):
+        print(ma.shape)
+        print(ma)
+
     def run(self):
-        ar = self.node.recv_simple("matrix")
-        print("recevied:")
-        print(ar)
+        self.node.request("matrix", bytes("matrix request", 'utf-8'), self.printr)
