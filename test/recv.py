@@ -11,4 +11,4 @@ class Recv(Host):
         print(ma)
 
     def run(self):
-        self.node.request("matrix", bytes("matrix request", 'utf-8'), self.printr)
+        self.node.request("matrix", bytes("test", 'utf-8'), self.printr)
